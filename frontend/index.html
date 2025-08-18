@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shortbread - Save Your Videos</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="Save short-form videos from social media to organized boards">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Shortbread">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <h1 class="logo">🍞 Shortbread</h1>
+            <p class="tagline">Save videos to your boards</p>
+        </header>
+
+        <main class="main">
+            <!-- Share Target Landing -->
+            <div id="shareTarget" class="share-target hidden">
+                <div class="share-card">
+                    <h2>Save Video</h2>
+                    <div class="video-preview" id="videoPreview">
+                        <div class="loading">Fetching video details...</div>
+                    </div>
+                    
+                    <div class="board-selector">
+                        <label for="boardSelect">Save to Board:</label>
+                        <select id="boardSelect" class="board-select">
+                            <option value="">Choose a board...</option>
+                        </select>
+                        <button type="button" id="createBoardBtn" class="create-board-btn">+ Create New Board</button>
+                    </div>
+                    
+                    <div class="actions">
+                        <button id="saveVideoBtn" class="save-btn" disabled>Save Video</button>
+                        <button id="cancelBtn" class="cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard -->
+            <div id="dashboard" class="dashboard">
+                <div class="welcome-section">
+                    <h2>Your Video Boards</h2>
+                    <p>Create boards to organize your saved videos</p>
+                    <button id="addBoardBtn" class="add-board-btn">+ Create Board</button>
+                </div>
+                
+                <div id="boardsList" class="boards-list">
+                    <!-- Boards will be populated here -->
+                </div>
+            </div>
+
+            <!-- Board Creation Modal -->
+            <div id="createBoardModal" class="modal hidden">
+                <div class="modal-content">
+                    <h3>Create New Board</h3>
+                    <input type="text" id="boardNameInput" placeholder="Board name" maxlength="50">
+                    <textarea id="boardDescInput" placeholder="Description (optional)" maxlength="200"></textarea>
+                    <div class="modal-actions">
+                        <button id="confirmCreateBoard" class="save-btn">Create</button>
+                        <button id="cancelCreateBoard" class="cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Install Prompt -->
+        <div id="installPrompt" class="install-prompt hidden">
+            <div class="install-card">
+                <h3>📱 Install Shortbread</h3>
+                <p>Install as an app to easily save videos from your share menu</p>
+                <button id="installBtn" class="install-btn">Install App</button>
+                <button id="dismissInstall" class="dismiss-btn">Maybe Later</button>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
