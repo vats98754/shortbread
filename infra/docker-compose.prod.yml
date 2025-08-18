@@ -1,0 +1,35 @@
+# Production deployment with docker-compose
+version: '3.8'
+
+services:
+  backend:
+    build: ../backend
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    
+  frontend:
+    build: ../frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=https://api.yourdomain.com
+    restart: unless-stopped
+    
+  # Add database when needed
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: shortbread
+  #     POSTGRES_USER: shortbread
+  #     POSTGRES_PASSWORD: your_password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+# volumes:
+#   postgres_data:
