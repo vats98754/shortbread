@@ -1,7 +1,7 @@
 """Basic health check tests for the FastAPI backend"""
 import subprocess
 import time
-import requests
+import httpx
 import pytest
 
 
@@ -29,7 +29,7 @@ def test_health_endpoint_integration():
     
     try:
         # Test health endpoint
-        response = requests.get("http://localhost:8000/health", timeout=5)
+        response = httpx.get("http://localhost:8000/health", timeout=5)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
@@ -37,7 +37,7 @@ def test_health_endpoint_integration():
         assert data["version"] == "1.0.0"
         
         # Test root endpoint
-        response = requests.get("http://localhost:8000/", timeout=5)
+        response = httpx.get("http://localhost:8000/", timeout=5)
         assert response.status_code == 200
         data = response.json()
         assert data["message"] == "Welcome to Shortbread API"
