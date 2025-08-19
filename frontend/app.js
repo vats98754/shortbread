@@ -204,7 +204,10 @@ class ShortbreadApp {
             });
 
             if (response.ok) {
-                this.showToast('Video saved successfully!', 'success');
+                // Find the board name for the toast message
+                const selectedBoard = this.boards.find(board => board.id === boardId);
+                const boardName = selectedBoard ? selectedBoard.name : 'Unknown Board';
+                this.showToast(`Saved to ${boardName} ✅`, 'success');
                 setTimeout(() => {
                     this.hideShareTarget();
                 }, 1500);
