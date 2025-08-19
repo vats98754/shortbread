@@ -52,10 +52,13 @@ class ShortbreadApp {
             this.handleSignup();
         });
 
-        // Logout button
-        document.getElementById('logoutBtn').addEventListener('click', () => {
-            this.logout();
-        });
+        // Logout button (check if it exists first)
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                this.logout();
+            });
+        }
 
         // Board selection
         document.getElementById('boardSelect').addEventListener('change', (e) => {
