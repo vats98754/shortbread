@@ -3,19 +3,75 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const fs = require('fs').promises;
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// MongoDB connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/shortbread';
+
+// Connect to MongoDB
+async function connectDB() {
+    try {
+        // Add connection timeout for development
+        await mongoose.connect(MONGODB_URI, {
+            serverSelectionTimeoutMS: 5000, // 5 second timeout
+            connectTimeoutMS: 5000
+        });
+        console.log('Connected to MongoDB');
+        return true;
+    } catch (error) {
+        console.error('MongoDB connection error:', error.message);
+        // For development, continue without database
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('Continuing without database in development mode');
+            return false;
+        } else {
+            console.error('MongoDB connection required in production');
+            process.exit(1);
+        }
+    }
+}
+
+// MongoDB Schemas
+const boardSchema = new mongoose.Schema({
+    id: { type: String, unique: true, required: true },
+    name: { type: String, required: true },
+    description: { type: String, default: '' },
+    created: { type: Date, default: Date.now },
+    videoCount: { type: Number, default: 0 }
+});
+
+const videoSchema = new mongoose.Schema({
+    id: { type: String, unique: true, required: true },
+    url: { type: String, required: true },
+    platform: { type: String, required: true },
+    title: { type: String, required: true },
+    thumbnail: { type: String },
+    duration: { type: String },
+    status: { type: String, default: 'processed' },
+    downloadUrl: { type: String },
+    boardId: { type: String, required: true },
+    addedAt: { type: Date, default: Date.now }
+});
+
+// In-memory fallback storage for development
+let memoryBoards = [];
+let memoryVideos = [];
+let useDatabase = false;
+
+const Board = mongoose.model('Board', boardSchema);
+const Video = mongoose.model('Video', videoSchema);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configure multer for file uploads
+// Configure multer for file uploads (using memory storage for Render compatibility)
 const upload = multer({
-    dest: 'uploads/',
+    storage: multer.memoryStorage(),
     limits: {
         fileSize: 10 * 1024 * 1024 // 10MB limit
     }
@@ -23,56 +79,6 @@ const upload = multer({
 
 // Serve static files from frontend
 app.use(express.static(path.join(__dirname, '../frontend')));
-
-// In-memory storage for development (in production, use a real database)
-let boards = [];
-let videos = [];
-
-// Data persistence helpers
-const DATA_DIR = path.join(__dirname, 'data');
-const BOARDS_FILE = path.join(DATA_DIR, 'boards.json');
-const VIDEOS_FILE = path.join(DATA_DIR, 'videos.json');
-
-async function ensureDataDir() {
-    try {
-        await fs.mkdir(DATA_DIR, { recursive: true });
-    } catch (error) {
-        console.error('Error creating data directory:', error);
-    }
-}
-
-async function loadData() {
-    try {
-        await ensureDataDir();
-        
-        try {
-            const boardsData = await fs.readFile(BOARDS_FILE, 'utf8');
-            boards = JSON.parse(boardsData);
-        } catch {
-            boards = [];
-        }
-        
-        try {
-            const videosData = await fs.readFile(VIDEOS_FILE, 'utf8');
-            videos = JSON.parse(videosData);
-        } catch {
-            videos = [];
-        }
-        
-        console.log(`Loaded ${boards.length} boards and ${videos.length} videos`);
-    } catch (error) {
-        console.error('Error loading data:', error);
-    }
-}
-
-async function saveData() {
-    try {
-        await fs.writeFile(BOARDS_FILE, JSON.stringify(boards, null, 2));
-        await fs.writeFile(VIDEOS_FILE, JSON.stringify(videos, null, 2));
-    } catch (error) {
-        console.error('Error saving data:', error);
-    }
-}
 
 // Video info extraction helper
 function extractVideoInfo(url) {
@@ -98,28 +104,6 @@ function extractVideoInfo(url) {
         thumbnail: null,
         duration: null
     };
-}
-
-// Simulate yt-dlp video processing
-async function processVideo(url) {
-    // In a real implementation, this would:
-    // 1. Use yt-dlp to download the video
-    // 2. Upload to S3/Cloudflare R2
-    // 3. Extract metadata
-    // 4. Generate thumbnails
-    
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            const videoInfo = extractVideoInfo(url);
-            resolve({
-                id: uuidv4(),
-                ...videoInfo,
-                status: 'processed',
-                downloadUrl: `/api/videos/${videoInfo.id}/download`,
-                addedAt: new Date().toISOString()
-            });
-        }, 2000); // Simulate processing time
-    });
 }
 
 // Routes
@@ -165,23 +149,46 @@ app.post('/api/videos', async (req, res) => {
         }
         
         // Find the board
-        const board = boards.find(b => b.id === boardId);
+        let board;
+        if (useDatabase) {
+            board = await Board.findOne({ id: boardId });
+        } else {
+            board = memoryBoards.find(b => b.id === boardId);
+        }
+        
         if (!board) {
             return res.status(404).json({ error: 'Board not found' });
         }
         
         // Process the video
-        const processedVideo = await processVideo(url);
-        processedVideo.boardId = boardId;
+        const videoInfo = extractVideoInfo(url);
+        const videoData = {
+            id: uuidv4(),
+            ...videoInfo,
+            boardId,
+            status: 'processed',
+            downloadUrl: `/api/videos/${videoInfo.id}/download`,
+            addedAt: new Date().toISOString()
+        };
         
-        videos.push(processedVideo);
-        
-        // Update board video count
-        board.videoCount = videos.filter(v => v.boardId === boardId).length;
-        
-        await saveData();
-        
-        res.json(processedVideo);
+        if (useDatabase) {
+            const newVideo = new Video(videoData);
+            await newVideo.save();
+            
+            // Update board video count
+            const videoCount = await Video.countDocuments({ boardId });
+            board.videoCount = videoCount;
+            await board.save();
+            
+            res.json(newVideo);
+        } else {
+            memoryVideos.push(videoData);
+            
+            // Update board video count
+            board.videoCount = memoryVideos.filter(v => v.boardId === boardId).length;
+            
+            res.json(videoData);
+        }
         
     } catch (error) {
         console.error('Error saving video:', error);
@@ -190,8 +197,18 @@ app.post('/api/videos', async (req, res) => {
 });
 
 // Get boards
-app.get('/api/boards', (req, res) => {
-    res.json(boards);
+app.get('/api/boards', async (req, res) => {
+    try {
+        if (useDatabase) {
+            const boards = await Board.find().sort({ created: -1 });
+            res.json(boards);
+        } else {
+            res.json(memoryBoards);
+        }
+    } catch (error) {
+        console.error('Error fetching boards:', error);
+        res.status(500).json({ error: 'Failed to fetch boards' });
+    }
 });
 
 // Create board
@@ -203,7 +220,7 @@ app.post('/api/boards', async (req, res) => {
             return res.status(400).json({ error: 'Board name is required' });
         }
         
-        const newBoard = {
+        const boardData = {
             id: uuidv4(),
             name,
             description: description || '',
@@ -211,10 +228,14 @@ app.post('/api/boards', async (req, res) => {
             videoCount: 0
         };
         
-        boards.push(newBoard);
-        await saveData();
-        
-        res.json(newBoard);
+        if (useDatabase) {
+            const newBoard = new Board(boardData);
+            await newBoard.save();
+            res.json(newBoard);
+        } else {
+            memoryBoards.push(boardData);
+            res.json(boardData);
+        }
         
     } catch (error) {
         console.error('Error creating board:', error);
@@ -223,15 +244,31 @@ app.post('/api/boards', async (req, res) => {
 });
 
 // Get videos for a board
-app.get('/api/boards/:boardId/videos', (req, res) => {
-    const { boardId } = req.params;
-    const boardVideos = videos.filter(v => v.boardId === boardId);
-    res.json(boardVideos);
+app.get('/api/boards/:boardId/videos', async (req, res) => {
+    try {
+        const { boardId } = req.params;
+        
+        if (useDatabase) {
+            const boardVideos = await Video.find({ boardId }).sort({ addedAt: -1 });
+            res.json(boardVideos);
+        } else {
+            const boardVideos = memoryVideos.filter(v => v.boardId === boardId);
+            res.json(boardVideos);
+        }
+    } catch (error) {
+        console.error('Error fetching board videos:', error);
+        res.status(500).json({ error: 'Failed to fetch videos' });
+    }
 });
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        database: useDatabase ? 'MongoDB' : 'In-Memory',
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
 // Serve frontend for all other routes (SPA)
@@ -247,12 +284,17 @@ app.use((error, req, res, next) => {
 
 // Start server
 async function startServer() {
-    await loadData();
+    useDatabase = await connectDB();
     
     app.listen(PORT, () => {
         console.log(`Shortbread server running on port ${PORT}`);
         console.log(`Frontend: http://localhost:${PORT}`);
         console.log(`API: http://localhost:${PORT}/api`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`Database: ${useDatabase ? 'MongoDB Connected' : 'In-Memory Fallback'}`);
+        if (useDatabase) {
+            console.log(`MongoDB URI: ${MONGODB_URI.replace(/\/\/.*:.*@/, '//***:***@')}`);
+        }
     });
 }
 
