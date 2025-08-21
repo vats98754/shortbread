@@ -2,6 +2,8 @@ class ShortbreadApp {
     constructor() {
         this.boards = [];
         this.deferredPrompt = null;
+        this.isAuthenticated = false;
+        this.currentUser = null;
         this.init();
     }
 
@@ -16,23 +18,48 @@ class ShortbreadApp {
             }
         }
 
-        // Load boards from backend
-        await this.loadBoards();
+        // Check authentication status
+        this.checkAuthStatus();
 
-        // Check for shared content
-        this.handleSharedContent();
-        
         // Set up event listeners
         this.setupEventListeners();
         
-        // Render boards
-        this.renderBoards();
-        
         // Check for install prompt
         this.setupInstallPrompt();
+
+        // Show appropriate UI based on auth status
+        this.updateUI();
     }
 
     setupEventListeners() {
+        // Authentication tabs
+        document.getElementById('loginTab').addEventListener('click', () => {
+            this.showLoginForm();
+        });
+
+        document.getElementById('signupTab').addEventListener('click', () => {
+            this.showSignupForm();
+        });
+
+        // Authentication forms
+        document.getElementById('loginFormElement').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleLogin();
+        });
+
+        document.getElementById('signupFormElement').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleSignup();
+        });
+
+        // Logout button (check if it exists first)
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                this.logout();
+            });
+        }
+
         // Board selection
         document.getElementById('boardSelect').addEventListener('change', (e) => {
             const saveBtn = document.getElementById('saveVideoBtn');
@@ -349,6 +376,151 @@ class ShortbreadApp {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Authentication Methods
+    checkAuthStatus() {
+        // Check localStorage for auth token or user data
+        const userData = localStorage.getItem('shortbread_user');
+        if (userData) {
+            try {
+                this.currentUser = JSON.parse(userData);
+                this.isAuthenticated = true;
+            } catch (error) {
+                console.error('Error parsing user data:', error);
+                localStorage.removeItem('shortbread_user');
+            }
+        }
+    }
+
+    updateUI() {
+        const authSection = document.getElementById('authSection');
+        const dashboard = document.getElementById('dashboard');
+        const userActions = document.getElementById('userActions');
+        const userName = document.getElementById('userName');
+        
+        if (this.isAuthenticated) {
+            authSection.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            userActions.classList.remove('hidden');
+            userName.textContent = this.currentUser.name;
+            this.loadBoards();
+            this.handleSharedContent();
+            this.renderBoards();
+        } else {
+            authSection.classList.remove('hidden');
+            dashboard.classList.add('hidden');
+            userActions.classList.add('hidden');
+        }
+    }
+
+    showLoginForm() {
+        document.getElementById('loginTab').classList.add('active');
+        document.getElementById('signupTab').classList.remove('active');
+        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('signupForm').classList.add('hidden');
+    }
+
+    showSignupForm() {
+        document.getElementById('loginTab').classList.remove('active');
+        document.getElementById('signupTab').classList.add('active');
+        document.getElementById('loginForm').classList.add('hidden');
+        document.getElementById('signupForm').classList.remove('hidden');
+    }
+
+    async handleLogin() {
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        
+        if (!email || !password) {
+            this.showToast('Please fill in all fields', 'error');
+            return;
+        }
+
+        try {
+            // Simulate login for demo purposes
+            // In a real app, this would make an API call
+            this.showToast('Signing in...', 'info');
+            
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // For demo, any email/password combination works
+            const userData = {
+                id: 'demo-user',
+                name: email.split('@')[0],
+                email: email
+            };
+            
+            localStorage.setItem('shortbread_user', JSON.stringify(userData));
+            this.currentUser = userData;
+            this.isAuthenticated = true;
+            
+            this.showToast('Welcome back!', 'success');
+            this.updateUI();
+            
+        } catch (error) {
+            console.error('Login error:', error);
+            this.showToast('Login failed. Please try again.', 'error');
+        }
+    }
+
+    async handleSignup() {
+        const name = document.getElementById('signupName').value;
+        const email = document.getElementById('signupEmail').value;
+        const password = document.getElementById('signupPassword').value;
+        const confirmPassword = document.getElementById('signupConfirmPassword').value;
+        
+        if (!name || !email || !password || !confirmPassword) {
+            this.showToast('Please fill in all fields', 'error');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            this.showToast('Passwords do not match', 'error');
+            return;
+        }
+
+        if (password.length < 6) {
+            this.showToast('Password must be at least 6 characters', 'error');
+            return;
+        }
+
+        try {
+            // Simulate signup for demo purposes
+            // In a real app, this would make an API call
+            this.showToast('Creating account...', 'info');
+            
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // For demo, create user account
+            const userData = {
+                id: 'demo-user-' + Date.now(),
+                name: name,
+                email: email
+            };
+            
+            localStorage.setItem('shortbread_user', JSON.stringify(userData));
+            this.currentUser = userData;
+            this.isAuthenticated = true;
+            
+            this.showToast(`Welcome to Shortbread, ${name}!`, 'success');
+            this.updateUI();
+            
+        } catch (error) {
+            console.error('Signup error:', error);
+            this.showToast('Signup failed. Please try again.', 'error');
+        }
+    }
+
+    logout() {
+        localStorage.removeItem('shortbread_user');
+        this.currentUser = null;
+        this.isAuthenticated = false;
+        this.boards = [];
+        this.updateUI();
+        this.showToast('Logged out successfully', 'info');
     }
 }
 
